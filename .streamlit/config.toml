@@ -9,7 +9,11 @@ font = "sans serif"
 headless = true
 # Los Excel del PMS pesan ~120 KB; 10 MB sobra y acota lo que se puede subir.
 maxUploadSize = 10
-port = 8502
+# OJO: NO fijar `port` aqui. En la nube, Streamlit Community Cloud arranca la
+# app y comprueba su salud en el 8501; si se fuerza otro puerto, la plataforma
+# recibe 'connection refused' y el despliegue falla. El 8502 que separa este
+# dashboard del de la Finca en local lo ponen los lanzadores, con
+# `--server.port 8502` (Neptuno.bat y scripts/abrir_dashboard.bat).
 
 [browser]
 gatherUsageStats = false
