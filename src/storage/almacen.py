@@ -156,11 +156,10 @@ class AlmacenGitHub(Almacen):
         por defecto devuelve el contenido VACÍO para ficheros de más de 1 MB,
         sin dar error. El histórico ya pesa 1,76 MB.
         """
-        r = requests.get(
-            self._url(ruta),
+        r = self._peticion(
+            requests.get, self._url(ruta), f"leer {ruta}",
             headers={**self._cabeceras, "Accept": "application/vnd.github.raw"},
-            params={"ref": self.rama},
-            timeout=60,
+            params={"ref": self.rama}, timeout=60,
         )
         if r.status_code == 404:
             return None
@@ -169,11 +168,10 @@ class AlmacenGitHub(Almacen):
 
     def _sha(self, ruta: str) -> str | None:
         """Sha del fichero, necesario para sobrescribirlo. None si no existe."""
-        r = requests.get(
-            self._url(ruta),
+        r = self._peticion(
+            requests.get, self._url(ruta), f"consultar {ruta}",
             headers={**self._cabeceras, "Accept": "application/vnd.github.object"},
-            params={"ref": self.rama},
-            timeout=30,
+            params={"ref": self.rama}, timeout=30,
         )
         if r.status_code == 404:
             return None
@@ -188,9 +186,32 @@ class AlmacenGitHub(Almacen):
         }
         if sha:
             cuerpo["sha"] = sha
-        r = requests.put(self._url(ruta), headers=self._cabeceras,
-                         json=cuerpo, timeout=120)
+        r = self._peticion(requests.put, self._url(ruta), f"escribir {ruta}",
+                           headers=self._cabeceras, json=cuerpo, timeout=120)
         self._comprobar(r, f"escribir {ruta}")
+
+    @staticmethod
+    def _peticion(metodo, url, accion, **kw):
+        """Llama a GitHub traduciendo los fallos de red a `ErrorAlmacen`.
+
+        Sin esto, quedarse sin internet revienta con una excepcion de
+        `requests` que la interfaz no espera y acaba en un error feo de Python
+        en pantalla, en vez de un mensaje que se entienda.
+        """
+        try:
+            return metodo(url, **kw)
+        except requests.exceptions.Timeout:
+            raise ErrorAlmacen(
+                f"GitHub no responde al {accion}. Puede ser lentitud puntual: "
+                f"vuelve a intentarlo en un minuto."
+            ) from None
+        except requests.exceptions.ConnectionError:
+            raise ErrorAlmacen(
+                f"Sin conexion con GitHub al {accion}. Revisa tu internet. "
+                f"Los datos en la nube no se han tocado."
+            ) from None
+        except requests.exceptions.RequestException as e:
+            raise ErrorAlmacen(f"Fallo de red al {accion}: {e}") from None
 
     @staticmethod
     def _comprobar(r: requests.Response, accion: str) -> None:
