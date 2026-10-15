@@ -88,6 +88,39 @@ def historico_descargable(version: str, df: pd.DataFrame) -> bytes:
     return historico_a_bytes(df)
 
 
+# Umbral a partir del cual se avisa de que el token esta por caducar.
+# Un mes da margen de sobra para renovarlo sin prisas, y como el dashboard se
+# mira una vez por semana, garantiza al menos 4 avisos antes del corte.
+DIAS_AVISO_TOKEN = 30
+
+
+def _aviso_caducidad(almacen) -> None:
+    """Avisa de que la credencial de GitHub esta a punto de caducar.
+
+    Cuando caduca, la app deja de poder guardar: es mejor enterarse con un mes
+    de margen que un lunes con el Excel en la mano.
+    """
+    dias = almacen.dias_hasta_caducidad()
+    if dias is None or dias > DIAS_AVISO_TOKEN:
+        return
+
+    pasos = (
+        "**Cómo renovarlo:** entra en "
+        "[tus tokens de GitHub](https://github.com/settings/personal-access-tokens), "
+        "abre el del hotel, pulsa **Regenerate token**, copia el nuevo y pégalo en "
+        "*Settings → Secrets* de esta app. Dos minutos."
+    )
+    if dias <= 0:
+        st.error("🔴 **La credencial de GitHub ha caducado.** La app ya no puede "
+                 "guardar cargas nuevas.\n\n" + pasos)
+    elif dias <= 7:
+        st.error(f"🔴 **La credencial de GitHub caduca en {dias} día(s).** Cuando "
+                 f"caduque no podrás cargar el Excel del lunes.\n\n" + pasos)
+    else:
+        st.warning(f"🟠 **La credencial de GitHub caduca en {dias} días.** "
+                   f"Conviene renovarla antes de que te pille.\n\n" + pasos)
+
+
 def _seccion_carga(almacen) -> None:
     """Subida del Excel semanal desde el navegador."""
     with st.expander("📥 Cargar el Excel del lunes", expanded=False):
@@ -244,6 +277,7 @@ def main() -> None:
         return
 
     _seccion_carga(almacen)
+    _aviso_caducidad(almacen)
 
     if df is None or df.empty:
         st.info(
@@ -282,6 +316,11 @@ def main() -> None:
         st.subheader("Histórico")
         st.caption(almacen.descripcion())
         st.caption(f"Filas totales: {len(df):,}")
+        dias_token = almacen.dias_hasta_caducidad()
+        if dias_token is not None:
+            icono = "🔴" if dias_token <= 7 else ("🟠" if dias_token <= DIAS_AVISO_TOKEN else "🟢")
+            st.caption(f"{icono} Credencial: {dias_token} días")
+
         st.download_button(
             "⬇️ Descargar para Excel",
             data=historico_descargable(almacen.version(), df),

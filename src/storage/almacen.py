@@ -15,6 +15,7 @@ from __future__ import annotations
 import base64
 import os
 from abc import ABC, abstractmethod
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
 
@@ -24,6 +25,7 @@ import requests
 HOJA_HISTORICO = "Historico"
 RUTA_HISTORICO = "data/historico/historico_neptuno.xlsx"
 CARPETA_ARCHIVO = "Excel-Lunes"
+CABECERA_CADUCIDAD = "GitHub-Authentication-Token-Expiration"
 
 MESES_LARGOS_ES = {
     1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio",
@@ -81,6 +83,13 @@ class Almacen(ABC):
         Sirve de clave de caché: si cambia, hay que releer. En local es la
         fecha de modificación; en GitHub, el sha del fichero.
         """
+
+    def dias_hasta_caducidad(self) -> int | None:
+        """Días que le quedan a la credencial, o None si no caduca o no se sabe.
+
+        El almacén local no usa credenciales, así que nunca caduca.
+        """
+        return None
 
     def historico_bytes(self) -> bytes | None:
         """El histórico tal cual, para el botón de descarga."""
@@ -145,6 +154,7 @@ class AlmacenGitHub(Almacen):
             "Authorization": f"Bearer {token}",
             "X-GitHub-Api-Version": "2022-11-28",
         }
+        self._caduca: datetime | None = None
 
     def _url(self, ruta: str) -> str:
         return f"{self.API}/repos/{self.repo}/contents/{ruta}"
@@ -190,8 +200,7 @@ class AlmacenGitHub(Almacen):
                            headers=self._cabeceras, json=cuerpo, timeout=120)
         self._comprobar(r, f"escribir {ruta}")
 
-    @staticmethod
-    def _peticion(metodo, url, accion, **kw):
+    def _peticion(self, metodo, url, accion, **kw):
         """Llama a GitHub traduciendo los fallos de red a `ErrorAlmacen`.
 
         Sin esto, quedarse sin internet revienta con una excepcion de
@@ -199,7 +208,9 @@ class AlmacenGitHub(Almacen):
         en pantalla, en vez de un mensaje que se entienda.
         """
         try:
-            return metodo(url, **kw)
+            r = metodo(url, **kw)
+            self._anotar_caducidad(r)
+            return r
         except requests.exceptions.Timeout:
             raise ErrorAlmacen(
                 f"GitHub no responde al {accion}. Puede ser lentitud puntual: "
@@ -232,6 +243,31 @@ class AlmacenGitHub(Almacen):
                 f"(formato `usuario/repo`) y que el token lo incluya."
             )
         raise ErrorAlmacen(f"GitHub devolvio {r.status_code} al {accion}: {r.text[:200]}")
+
+    def _anotar_caducidad(self, r) -> None:
+        """Guarda cuándo caduca el token, que GitHub manda en cada respuesta."""
+        valor = r.headers.get(CABECERA_CADUCIDAD)
+        if not valor:
+            return
+        try:
+            t = datetime.strptime(valor.replace(" UTC", "").strip(),
+                                  "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        except ValueError:
+            return
+        # GitHub tiene un fallo conocido por el que a veces manda la hora
+        # actual del servidor en lugar de la caducidad real. Una fecha pegada
+        # a ahora es mucho mas probable que sea ese fallo que un token que
+        # caduca en este mismo minuto, asi que se descarta en vez de dar un
+        # aviso falso. Si de verdad hubiera caducado, GitHub responderia 401 y
+        # ya se avisa por otro lado.
+        if t - datetime.now(timezone.utc) < timedelta(minutes=5):
+            return
+        self._caduca = t
+
+    def dias_hasta_caducidad(self) -> int | None:
+        if self._caduca is None:
+            return None
+        return (self._caduca - datetime.now(timezone.utc)).days
 
     def leer_historico(self) -> pd.DataFrame | None:
         datos = self._descargar(RUTA_HISTORICO)
