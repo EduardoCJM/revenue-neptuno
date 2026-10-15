@@ -1,0 +1,60 @@
+# ⚠️ ESTE REPO ES PÚBLICO. Los datos del hotel viven en el repo privado
+# `revenue-neptuno-datos`, nunca aquí. Lee la nota del final antes de tocarlo.
+
+# ─── Credenciales ───
+.streamlit/secrets.toml
+.env
+*.pem
+
+# ─── Datos del hotel (produccion, ADR, RevPAR reales) ───
+# Red principal: ningun Excel, en ninguna carpeta, jamas.
+*.xlsx
+*.xls
+~$*.xlsx
+
+# Red secundaria: el contenido de las carpetas de datos, conservando los
+# .gitkeep que mantienen la estructura viva al clonar. Se ignora el CONTENIDO
+# (`carpeta/*`) y no la carpeta, porque git no entra en un directorio ignorado
+# y el .gitkeep de dentro nunca se volveria a incluir.
+Excel-Lunes/*
+!Excel-Lunes/BUZON/
+Excel-Lunes/BUZON/*
+!Excel-Lunes/BUZON/.gitkeep
+
+data/historico/*
+data/processed/*
+data/raw/*
+!data/**/.gitkeep
+
+# ─── Material pesado y sin usar por el codigo ───
+# assets/ se versiona: app.py incrusta el logo y la cabecera
+*.jpg
+*.jpeg
+*.png
+
+# ─── Entornos virtuales Python ───
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# ─── Herramientas y editores ───
+.claude/
+.vscode/
+.idea/
+
+# ─── Sistema operativo ───
+.DS_Store
+Thumbs.db
+
+# NOTA: `*.xlsx` ignora los Excel en CUALQUIER carpeta, a proposito. Aunque
+# alguien deje un Excel del PMS en una ruta nueva, no se publica por accidente.
+# Si algun dia hace falta versionar una plantilla SIN datos reales, metela con
+# `git add -f` y documentalo aqui.
+
+# EXCEPCION propia de Neptuno: estas dos imagenes SI van al repo, porque
+# app.py las incrusta en la cabecera y en la barra lateral. Sin ellas, la
+# version en la nube saldria sin logo.
+!assets/
+!assets/logo.png
+!assets/hero_piscina.jpg

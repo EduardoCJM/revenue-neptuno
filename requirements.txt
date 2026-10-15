@@ -1,0 +1,14 @@
+# Dependencias del dashboard Neptuno Costa Adeje.
+#
+# Versiones FIJADAS a propósito: son las que están probadas en local, y así la
+# nube instala exactamente lo mismo. Con `>=`, Streamlit Community Cloud podría
+# instalar una versión distinta y fallar de formas que aquí no se reproducen.
+#
+# Local:  .venv/Scripts/pip install -r requirements.txt
+# Nube:   Streamlit Community Cloud lo instala solo al desplegar.
+
+pandas==3.0.2
+openpyxl==3.1.5
+streamlit==1.56.0
+plotly==6.7.0
+requests==2.32.3
