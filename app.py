@@ -100,7 +100,15 @@ def _aviso_caducidad(almacen) -> None:
     Cuando caduca, la app deja de poder guardar: es mejor enterarse con un mes
     de margen que un lunes con el Excel en la mano.
     """
-    dias = almacen.dias_hasta_caducidad()
+    try:
+        dias = almacen.dias_hasta_caducidad()
+    except Exception:
+        # Este aviso es un extra: jamas debe tumbar el dashboard. Pasa, por
+        # ejemplo, justo despues de desplegar, cuando Streamlit ya ejecuta el
+        # app.py nuevo pero conserva en memoria la version anterior de
+        # src.storage.almacen, que todavia no tiene el metodo. Se arregla solo
+        # al reiniciar la app; mientras tanto, mejor sin aviso que sin nada.
+        return
     if dias is None or dias > DIAS_AVISO_TOKEN:
         return
 
@@ -316,7 +324,10 @@ def main() -> None:
         st.subheader("Histórico")
         st.caption(almacen.descripcion())
         st.caption(f"Filas totales: {len(df):,}")
-        dias_token = almacen.dias_hasta_caducidad()
+        try:
+            dias_token = almacen.dias_hasta_caducidad()
+        except Exception:
+            dias_token = None
         if dias_token is not None:
             icono = "🔴" if dias_token <= 7 else ("🟠" if dias_token <= DIAS_AVISO_TOKEN else "🟢")
             st.caption(f"{icono} Credencial: {dias_token} días")
